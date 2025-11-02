@@ -49,3 +49,19 @@ a= _mm_set_ps(4,3,2,1);     Load Data(Parallel Load): load the 4 numbers of vect
 b= _mm_set_ps(5,6,7,8);     Load Data(Parallel Load): load the 4 numbers of vector B into hte __m128 variable b;
 
 c= _mm_add_ps(a,b);         single line executes one assembly instruction that add all the 4 pairs of numbers at the same time
+
+NOTE: 
+when i have 6 values, although __m128 has capacitty for 4 slots.
+
+
+
+The _mm_loadu_ps intrinsic doesn't know (or care) that you only have two valid numbers remaining. It blindly attempts to read four consecutive floats (128 bits) starting from the memory address provided by A_partial.
+```cpp
+    float* A_partial = A + 4;
+    float* B_partial = B + 4;
+    float* C_partial = C + 4;
+
+    // Load the next 4 floats starting from index 4. 
+    // IMPORTANT: The last two slots will load garbage or data you don't care about.
+    __m128 vec_A2 = _mm_loadu_ps(A_partial);
+    __m128 vec_B2 = _mm_loadu_ps(B_partial);
