@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="iso-8859-1"?>
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd">
+<html xmlns="http://www.w3.org/1999/xhtml">
+<head>
+<title>main.html</title>
+<meta http-equiv="Content-Type" content="text/html; charset=iso-8859-1" />
+<meta name="generator" content="SynEdit HTML exporter" />
+<style type="text/css">
+<!--
+body { color: #000000; background-color: #FFFFFF; }
+.cpp1-assembler { color: #0000FF; }
+.cpp1-character { color: #000000; }
+.cpp1-comment { color: #0078D7; font-style: italic; }
+.cpp1-float { color: #800080; }
+.cpp1-hexadecimal { color: #800080; }
+.cpp1-identifier { color: #000000; }
+.cpp1-illegalchar { color: #000000; }
+.cpp1-number { color: #800080; }
+.cpp1-octal { color: #800080; }
+.cpp1-preprocessor { color: #008000; }
+.cpp1-reservedword { color: #000000; font-weight: bold; }
+.cpp1-space { background-color: #FFFFFF; color: #000000; }
+.cpp1-string { color: #FF0000; }
+.cpp1-symbol { color: #000000; }
+-->
+</style>
+</head>
+<body>
+<pre>
+<code><span style="font: 10pt Consolas;"><span class="cpp1-preprocessor">#include &lt;iostream&gt;
+#include &lt;iomanip&gt;
+#include &lt;emmintrin.h&gt; </span><span class="cpp1-comment">// Header for SSE/__m128 intrinsics
+
+</span><span class="cpp1-reservedword">const</span><span class="cpp1-space"> </span><span class="cpp1-reservedword">int</span><span class="cpp1-space"> SIMD_CHUNK_SIZE = </span><span class="cpp1-number">4</span><span class="cpp1-symbol">;
+
+</span><span class="cpp1-reservedword">void</span><span class="cpp1-space"> add_6_floats(</span><span class="cpp1-reservedword">float</span><span class="cpp1-symbol">* A, </span><span class="cpp1-reservedword">float</span><span class="cpp1-symbol">* B, </span><span class="cpp1-reservedword">float</span><span class="cpp1-symbol">* C) {
+	
+	</span><span class="cpp1-reservedword">const</span><span class="cpp1-space"> </span><span class="cpp1-reservedword">int</span><span class="cpp1-space"> NO_OF_CHUNKS_FULL = </span><span class="cpp1-number">9</span><span class="cpp1-symbol">/SIMD_CHUNK_SIZE;
+	</span><span class="cpp1-comment">// 9/4 = 2 ho. malai ta 2*4=8 samma we are good. very good if we don't have remainder.
+</span><span class="cpp1-space">	</span><span class="cpp1-comment">// but if we have reaminder which is tyo point ma chai we have to point through float* pointer.
+</span><span class="cpp1-space">	</span><span class="cpp1-comment">// 2*4=8 vanepaxi at 8th index our pointer should point for that last rotation of operation to be performed in m128 by _mm_loadu_ps.
+</span><span class="cpp1-space">	
+	</span><span class="cpp1-reservedword">const</span><span class="cpp1-space"> </span><span class="cpp1-reservedword">int</span><span class="cpp1-space"> REMAINDER_START_INDEX = NO_OF_CHUNKS_FULL * SIMD_CHUNK_SIZE;
+	
+	</span><span class="cpp1-reservedword">for</span><span class="cpp1-symbol">(</span><span class="cpp1-reservedword">int</span><span class="cpp1-space"> i=</span><span class="cpp1-number">0</span><span class="cpp1-symbol">;i&lt;NO_OF_CHUNKS_FULL;i++){
+		
+		</span><span class="cpp1-reservedword">int</span><span class="cpp1-space"> offset = i * SIMD_CHUNK_SIZE;
+		
+		
+		__m128 vec_A = _mm_loadu_ps(A + offset);
+		__m128 vec_B = _mm_loadu_ps(B + offset);
+		
+		__m128 vec_c = _mm_add_ps(vec_A,vec_B);
+		
+		_mm_storeu_ps(C+offset, vec_c);</span><span class="cpp1-comment">//c0,c4,... for full sized chunks.
+</span><span class="cpp1-space">	}
+	
+	</span><span class="cpp1-reservedword">if</span><span class="cpp1-symbol">(REMAINDER_START_INDEX &lt; </span><span class="cpp1-number">9</span><span class="cpp1-space"> ){
+		__m128 vec_A1 = _mm_load_ps(A+REMAINDER_START_INDEX);
+		__m128 vec_B1 = _mm_load_ps(B+REMAINDER_START_INDEX);
+		
+		__m128 vec_c1= _mm_add_ps(vec_A1, vec_B1);
+		
+		_mm_storeu_ps(C+REMAINDER_START_INDEX,vec_c1);
+	}
+    </span><span class="cpp1-comment">// ----------------------------------------------------
+</span><span class="cpp1-space">    </span><span class="cpp1-comment">// STEP 1: Process the first 4 elements (Full Vectorization)
+</span><span class="cpp1-space">    </span><span class="cpp1-comment">// ----------------------------------------------------
+
+//    // Load the first 4 floats of A and B into two 128-bit registers
+//    __m128 vec_A1 = _mm_loadu_ps(A);
+//    __m128 vec_B1 = _mm_loadu_ps(B);
+//
+//    // Perform the parallel addition on the first 4 elements
+//    __m128 vec_C1 = _mm_add_ps(vec_A1, vec_B1);
+//
+//    // Store the results back into the first 4 slots of C
+//    _mm_storeu_ps(C, vec_C1);
+//
+//    // ----------------------------------------------------
+//    // STEP 2: Process the remaining 2 elements (Partial Vectorization)
+//    // ----------------------------------------------------
+//
+//    // Pointers for the remaining 2 elements (starting at index 4)
+//    float* A_partial = A + 4;
+//    float* B_partial = B + 4;
+//    float* C_partial = C + 4;
+//
+//    // Load the next 4 floats starting from index 4. 
+//    // IMPORTANT: The last two slots will load garbage or data you don't care about.
+//    __m128 vec_A2 = _mm_loadu_ps(A_partial);
+//    __m128 vec_B2 = _mm_loadu_ps(B_partial);
+//	
+//	float* A_partial1 = A + 8;
+//    float* B_partial1 = B + 8;
+//    float* C_partial1 = C + 8;
+//
+//    // Load the next 4 floats starting from index 4. 
+//    // IMPORTANT: The last two slots will load garbage or data you don't care about.
+//    __m128 vec_A3 = _mm_loadu_ps(A_partial1);
+//    __m128 vec_B3 = _mm_loadu_ps(B_partial1);
+//    
+////A_partial le hold point gare dekhi tespaxi ko 4 ota floating values read garxa.
+//
+//    // Perform the parallel addition
+//    __m128 vec_C2 = _mm_add_ps(vec_A2, vec_B2);
+//	__m128 vec_C3 = _mm_add_ps(vec_A3, vec_B3);
+//    // Store the results back starting at index 4.
+//    // NOTE: We only care about the first 2 results stored here (C[4] and C[5]).
+//    _mm_storeu_ps(C_partial, vec_C2); 
+//       _mm_storeu_ps(C_partial1, vec_C3); 
+//    
+</span><span class="cpp1-space">    
+    </span><span class="cpp1-comment">// Since we only had 6 elements total, the values stored in C[6] and C[7] are invalid 
+</span><span class="cpp1-space">    </span><span class="cpp1-comment">// if C was allocated for only 6 elements. If C was padded to 8, then C[6] and C[7]
+</span><span class="cpp1-space">    </span><span class="cpp1-comment">// will contain the sums of the garbage data loaded in A[6]/B[6] and A[7]/B[7].
+</span><span class="cpp1-space">    </span><span class="cpp1-comment">// The code relies on the calling function only reading the first 6 elements of C.
+</span><span class="cpp1-symbol">}
+
+
+</span><span class="cpp1-reservedword">int</span><span class="cpp1-space"> main() {
+    </span><span class="cpp1-comment">// 6 single-precision floats (32-bit) for A and B
+</span><span class="cpp1-space">   
+   </span><span class="cpp1-reservedword">float</span><span class="cpp1-space"> A[</span><span class="cpp1-number">9</span><span class="cpp1-symbol">] = {</span><span class="cpp1-float">1.0f</span><span class="cpp1-symbol">, </span><span class="cpp1-float">2.0f</span><span class="cpp1-symbol">, </span><span class="cpp1-float">3.0f</span><span class="cpp1-symbol">, </span><span class="cpp1-float">4.0f</span><span class="cpp1-symbol">, </span><span class="cpp1-float">5.0f</span><span class="cpp1-symbol">, </span><span class="cpp1-float">6.0f</span><span class="cpp1-symbol">, </span><span class="cpp1-float">7.0f</span><span class="cpp1-symbol">, </span><span class="cpp1-float">8.0f</span><span class="cpp1-symbol">, </span><span class="cpp1-float">9.0f</span><span class="cpp1-symbol">};
+    </span><span class="cpp1-reservedword">float</span><span class="cpp1-space"> B[</span><span class="cpp1-number">9</span><span class="cpp1-symbol">] = {</span><span class="cpp1-float">0.1f</span><span class="cpp1-symbol">, </span><span class="cpp1-float">0.2f</span><span class="cpp1-symbol">, </span><span class="cpp1-float">0.3f</span><span class="cpp1-symbol">, </span><span class="cpp1-float">0.4f</span><span class="cpp1-symbol">, </span><span class="cpp1-float">0.5f</span><span class="cpp1-symbol">, </span><span class="cpp1-float">0.6f</span><span class="cpp1-symbol">, </span><span class="cpp1-float">0.7f</span><span class="cpp1-symbol">, </span><span class="cpp1-float">0.8f</span><span class="cpp1-symbol">, </span><span class="cpp1-float">0.9f</span><span class="cpp1-symbol">};
+    
+    </span><span class="cpp1-reservedword">float</span><span class="cpp1-space"> C[</span><span class="cpp1-number">9</span><span class="cpp1-symbol">]; </span><span class="cpp1-comment">// Result array for 6 floats
+//	float
+</span><span class="cpp1-space">    </span><span class="cpp1-comment">// Run the SIMD operation
+</span><span class="cpp1-space">    add_6_floats(A, B, C);
+
+    </span><span class="cpp1-comment">// Output the result
+</span><span class="cpp1-space">    std::cout &lt;&lt; </span><span class="cpp1-string">&quot;--- SIMD Addition (C = A + B) ---&quot;</span><span class="cpp1-space"> &lt;&lt; std::endl;
+    std::cout &lt;&lt; std::fixed &lt;&lt; std::setprecision(</span><span class="cpp1-number">1</span><span class="cpp1-symbol">);
+
+    </span><span class="cpp1-reservedword">for</span><span class="cpp1-space"> (</span><span class="cpp1-reservedword">int</span><span class="cpp1-space"> i = </span><span class="cpp1-number">0</span><span class="cpp1-symbol">; i &lt; </span><span class="cpp1-number">9</span><span class="cpp1-symbol">; ++i) {
+        std::cout &lt;&lt; </span><span class="cpp1-string">&quot;C[&quot;</span><span class="cpp1-space"> &lt;&lt; i &lt;&lt; </span><span class="cpp1-string">&quot;] = &quot;</span><span class="cpp1-space"> &lt;&lt; A[i] &lt;&lt; </span><span class="cpp1-string">&quot; + &quot;</span><span class="cpp1-space"> &lt;&lt; B[i] &lt;&lt; </span><span class="cpp1-string">&quot; = &quot;</span><span class="cpp1-space"> &lt;&lt; C[i] &lt;&lt; std::endl;
+    }
+
+    </span><span class="cpp1-reservedword">return</span><span class="cpp1-space"> </span><span class="cpp1-number">0</span><span class="cpp1-symbol">;
+}
+</span></span>
+</code></pre>
+</body>
+</html>
