@@ -1,1 +1,1 @@
-<img src="./macroblock_1channel.png" width="1920" height="1080"/>
+<img src="./IDCT_YCBCR_conversion.png" width="1920" height="1080"/>
