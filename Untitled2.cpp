@@ -40,9 +40,9 @@ int main() {
     //modifying some values here like this insdie the input.
             block[0][0] = 50;//strong DC
             block[0][1] = 30;//low frequency horizontal mode
-            block[1][1] = -20;//low frequncy verical mode
+            block[1][0] = -20;//low frequncy verical mode
             block[5][0] = 70; 
-                //block[5][5] =120;
+                block[5][5] =120;
             //firstly we take the input encoded vlaues right and then
             // we multiply by quantization parameter for that block
             //that block matrix will be our input which we pass to the computational fuinction
@@ -57,13 +57,13 @@ int main() {
             double out[N][N];
             idct8x8(dequant, out);
 
-            cv::Mat show(N, N, CV_8UC3);
+            cv::Mat show(N, N, CV_8UC1);
             for (int i = 0; i < N; ++i) {
                 for (int j = 0; j < N; ++j) {
                     int p = static_cast<int>(out[i][j]);
                     if (p < 0) p = 0;
                     if (p > 255)p = 255;
-                    show.at<cv::Vec3b>(i, j) = static_cast<cv::Vec3b>(p,p,p);
+                    show.at<uchar>(i, j) = static_cast<uchar>(p);
 
                 }
             }
