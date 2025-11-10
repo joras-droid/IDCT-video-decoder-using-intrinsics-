@@ -18,6 +18,20 @@ void printChannel(const std::vector<cv::Mat>& channel,const  std::string& label)
         printChannel(channel[i], label_i);
     }
 }
+
+void printMatFloat(const cv::Mat& mat, const std::string& label) {
+    std::cout << label << ":\n";
+    for (int r = 0; r < mat.rows; ++r) {
+        for (int c = 0; c < mat.cols; ++c) {
+            //std::fixed ensures floating point numbers are printed in non-scientific notation.
+            //std::setprecision limits the output to 2 digits after the decimal point.
+            std::cout << std::fixed << std::setprecision(2) << mat.at<float>(r, c) << " ";
+                                                                //mat.at<float>(r,c) safelt acesses the eleemnt ar row r and column c. <float >tells opencv to treat the data at that location as 32bit floating point number. as space is printed after the number of seperation.
+
+        }
+        std::cout << std::endl;
+    }
+}
 int main() {
     // Step 1: Create a 4x4 color patch (each pixel has unique color)
     cv::Mat rgb(4, 4, CV_8UC3);
@@ -48,6 +62,8 @@ int main() {
     // Keep Y at 4x4, but Cb/Cr become 2x2 (average each 2x2 block)
     cv::Mat Cb_sub, Cr_sub; // downsampled
 
+
+    
     //INTER_AREA computes the average of pixels values that falls inside the area of the output pixel, this is what we want for subsampling,ideals for images with high frequency chrom details.
     cv::resize(Cb, Cb_sub, cv::Size(2, 2), 0, 0, cv::INTER_AREA);
     cv::resize(Cr, Cr_sub, cv::Size(2, 2), 0, 0, cv::INTER_AREA);
@@ -68,8 +84,34 @@ int main() {
     printMat(Cb_up, "Cb upsampled channels");
     printMat(Cr_up, "Cr upsampled channels");
 
+    //we are applying DCT and IDCT to the Ychannel. simultaes the JPEG block compression.
+    //DCT(discrete cosine transform) converts the spatial to frequency domain.
+    //IDCT(Inverse DCT) converts the frequency to spatial doman.
+
+    cv::Mat Y_float;
+    Y.convertTo(Y_float, CV_32F); //Y chromium is converted to Y_floating of 32bit floating point number as  DCT requires floating point input.
+    printMatFloat(Y_float, "Ychromium 32bit floating converted matrix");
+    cv::Mat Y_dct, Y_idct;
+    
+    cv::dct(Y_float, Y_dct);//DCT:block to frequency Y_float to Y_dct through dct function
+    printMatFloat(Y_dct, "Ychromium dct floating converted matrix");
+    
+    cv::Mat Y_quantized = Y_dct * 20;
+    printMatFloat(Y_quantized, "Y_quantized AFTER QUANTIZATION");
+    Y_quantized = Y_quantized.mul(1);
+    printMatFloat(Y_quantized, "Y_quantized AFTER ROUNDOFF");
+
+
+    cv::idct(Y_quantized, Y_idct); //IDCT: frequency to block. Y_dct to Y_idct. through Idct function
+    printMatFloat(Y_idct, "Ychromium idct floating converted matrix");
+
+    cv::Mat Y_rec; 
+    Y_idct.convertTo(Y_rec, CV_8U);//Y_rec of 32bit floating point is converted 8 bit floating point.
+    printMat(Y_rec, "Ychromium 8bitfloating converted matrix");
+
+
     // Step 6: Merge and convert back to RGB
-    std::vector<cv::Mat> chans_rec = { Y, Cr_up, Cb_up };
+    std::vector<cv::Mat> chans_rec = { Y_rec, Cr_up, Cb_up };
     //printChannel(chans_rec, "we combined into one vector");
 
     cv::Mat ycbcr_rec;
