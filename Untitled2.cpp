@@ -1,137 +1,181 @@
-#include <opencv2/opencv.hpp>
+﻿#include <opencv2/opencv.hpp>
 #include <iostream>
 #include <iomanip>
-void printMat(const cv::Mat& mat, const std::string& label) {
-    std::cout << label << ":\n";
-    for (int r = 0; r < mat.rows; ++r) {
-        for (int c = 0; c < mat.cols; ++c) {
-            std::cout << std::setw(4) << (int)mat.at<uchar>(r, c) << " ";
+#include <vector>
+#include <cmath>
+
+// ---- 1. Utility: JPEG Quantization Table (Luma) ----
+cv::Mat makeQuantLuma() {
+    int qtab[16][16] = {
+        {16,11,10,16,24,40,51,61},
+        {12,12,14,19,26,58,60,55},
+        {14,13,16,24,40,57,69,56},
+        {14,17,22,29,51,87,80,62},
+        {18,22,37,56,68,109,103,77},
+        {24,35,55,64,81,104,113,92},
+        {49,64,78,87,103,121,120,101},
+        {72,92,95,98,112,100,103,99},
+         
+    };
+    cv::Mat tab(8,8, CV_32F);
+    for (int r = 0; r <8; ++r) for (int c = 0; c < 8; ++c) tab.at<float>(r, c) = float(qtab[r][c]);
+    return tab;
+}
+cv::Mat idctQuantLuma() {
+    int qtab[16][16] = {
+      
+        {18,22,37,56,68,109,103,77},
+        {24,35,55,64,81,104,113,92},
+        {49,64,78,87,103,121,120,101},
+        {72,92,95,98,112,100,103,99},
+          {16,11,10,16,24,40,51,61},
+        {12,12,14,19,26,58,60,55},
+        {14,13,16,24,40,57,69,56},
+        {14,17,22,29,51,87,80,62},
+
+    };
+    cv::Mat tab(8, 8, CV_32F);
+    for (int r = 0; r < 8; ++r) for (int c = 0; c < 8; ++c) tab.at<float>(r, c) = float(qtab[r][c]);
+    return tab;
+}
+
+// ---- 2. Utility: Create Colorful BGR Gradient ------
+cv::Mat colorfulGradient(int rows, int cols) {
+    cv::Mat img(rows, cols, CV_8UC3);
+    for (int r = 0; r < rows; ++r) {
+        for (int c = 0; c < cols; ++c) {
+            uchar b = static_cast<uchar>(255 * c / (cols - 1));
+            uchar g = static_cast<uchar>(255 * r / (rows - 1));
+            uchar rch = static_cast<uchar>(255 * (r + c) / (rows + cols - 2));
+            img.at<cv::Vec3b>(r, c) = cv::Vec3b(b, g, rch);
         }
-        std::cout << std::endl;
     }
+    return img;
 }
 
-void printChannel(const std::vector<cv::Mat>& channel,const  std::string& label) {
-    for (size_t i = 0; i < channel.size(); ++i)
-    {
-        std::string label_i = label+ "[" + std::to_string(i) + "]";
-        printChannel(channel[i], label_i);
-    }
-}
-
-void printMatFloat(const cv::Mat& mat, const std::string& label) {
-    std::cout << label << ":\n";
-    for (int r = 0; r < mat.rows; ++r) {
-        for (int c = 0; c < mat.cols; ++c) {
-            //std::fixed ensures floating point numbers are printed in non-scientific notation.
-            //std::setprecision limits the output to 2 digits after the decimal point.
-            std::cout << std::fixed << std::setprecision(2) << mat.at<float>(r, c) << " ";
-                                                                //mat.at<float>(r,c) safelt acesses the eleemnt ar row r and column c. <float >tells opencv to treat the data at that location as 32bit floating point number. as space is printed after the number of seperation.
-
-        }
-        std::cout << std::endl;
-    }
-}
-int main() {
-    // Step 1: Create a 4x4 color patch (each pixel has unique color)
-    cv::Mat rgb(4, 4, CV_8UC3);
-    for (int y = 0; y < 4; ++y) for (int x = 0; x < 4; ++x) {
-        rgb.at<cv::Vec3b>(y, x) = cv::Vec3b(64 * x, 64 * y, 255 - 32 * x - 32 * y); // Just for clear visualization
-    }
-    printMat(rgb, "formed input macroblock of 4x4");
-
-    // Step 2: Convert to YCbCr
-    cv::Mat ycbcr;
-    cv::cvtColor(rgb, ycbcr, cv::COLOR_BGR2YCrCb); // OpenCV uses YCrCb (Cr then Cb!)
-    printMat(ycbcr, "formed YCBCR after conversion ");
-
-    // Step 3: Split channels
-    std::vector<cv::Mat> chans;
-    //std::cout << "3 ota channels" <<  chans <<std::endl;  
-    cv::split(ycbcr, chans); // chans[0] = Y, [1] = Cr, [2] = Cb
-    cv::Mat& Y = chans[0];
-    cv::Mat& Cr = chans[1];
-    cv::Mat& Cb = chans[2];
-
-    printMat(Y, "Y channels");
-    printMat(Cb, "Cb channels");
-    printMat(Cr, "Cr channels");
-
-
-    // Step 4: Subsample Cb and Cr (4:2:0)
-    // Keep Y at 4x4, but Cb/Cr become 2x2 (average each 2x2 block)
-    cv::Mat Cb_sub, Cr_sub; // downsampled
-
-
-    
-    //INTER_AREA computes the average of pixels values that falls inside the area of the output pixel, this is what we want for subsampling,ideals for images with high frequency chrom details.
-    cv::resize(Cb, Cb_sub, cv::Size(2, 2), 0, 0, cv::INTER_AREA);
-    cv::resize(Cr, Cr_sub, cv::Size(2, 2), 0, 0, cv::INTER_AREA);
-    //printMat(Y, "Y channels");
-    printMat(Cb_sub, "Cb downsampled channels");
-    printMat(Cr_sub, "Cr downsampled channels");
-
-    // (Optional: Simulate DCT/quantization per plane here)
-    // We'll skip real DCT for now, focus on subsampling
-    // Uncomment to see saving (store Y as 4x4, Cb/Cr as 2x2!
-
-    // Step 5: Upsample back (for display/reconstruction)
-    //while unsampling, we did INTER_LINEAR which guesses the value of new pixel based on the weighted average of it's four nearest neighbouts in the low resolution image.
-    cv::Mat Cb_up, Cr_up;
-    cv::resize(Cb_sub, Cb_up, cv::Size(4, 4), 0, 0, cv::INTER_LINEAR);
-    cv::resize(Cr_sub, Cr_up, cv::Size(4, 4), 0, 0, cv::INTER_LINEAR);
-    //printMat(Y, "Y channels"); 
-    printMat(Cb_up, "Cb upsampled channels");
-    printMat(Cr_up, "Cr upsampled channels");
-
-    //we are applying DCT and IDCT to the Ychannel. simultaes the JPEG block compression.
-    //DCT(discrete cosine transform) converts the spatial to frequency domain.
-    //IDCT(Inverse DCT) converts the frequency to spatial doman.
-
-    cv::Mat Y_float;
-    Y.convertTo(Y_float, CV_32F); //Y chromium is converted to Y_floating of 32bit floating point number as  DCT requires floating point input.
-    printMatFloat(Y_float, "Ychromium 32bit floating converted matrix");
-    cv::Mat Y_dct, Y_idct;
-    
-    cv::dct(Y_float, Y_dct);//DCT:block to frequency Y_float to Y_dct through dct function
-    printMatFloat(Y_dct, "Ychromium dct floating converted matrix");
-    
-    cv::Mat Y_quantized = Y_dct * 20;
-    printMatFloat(Y_quantized, "Y_quantized AFTER QUANTIZATION");
-    Y_quantized = Y_quantized.mul(1);
-    printMatFloat(Y_quantized, "Y_quantized AFTER ROUNDOFF");
-
-
-    cv::idct(Y_quantized, Y_idct); //IDCT: frequency to block. Y_dct to Y_idct. through Idct function
-    printMatFloat(Y_idct, "Ychromium idct floating converted matrix");
-
-    cv::Mat Y_rec; 
-    Y_idct.convertTo(Y_rec, CV_8U);//Y_rec of 32bit floating point is converted 8 bit floating point.
-    printMat(Y_rec, "Ychromium 8bitfloating converted matrix");
-
-
-    // Step 6: Merge and convert back to RGB
-    std::vector<cv::Mat> chans_rec = { Y_rec, Cr_up, Cb_up };
-    //printChannel(chans_rec, "we combined into one vector");
-
-    cv::Mat ycbcr_rec;
-
-    cv::merge(chans_rec, ycbcr_rec);
+// ---- 3. Blockwise DCT/Quantize/IDCT for one 8x8-channel----
+void jpegBlockProcess(const cv::Mat& in, cv::Mat& out, const cv::Mat& Q, float qScale, const cv::Mat& IQ) {
+    CV_Assert(in.rows == 8 && in.cols == 8 && in.type() == CV_8U);
+    cv::Mat f;
+    in.convertTo(f, CV_32F);
+    cv::Mat dct;
+    cv::dct(f, dct);
+    cv::Mat quant = dct / (Q * qScale);
+    for (int y = 0; y <8; ++y) for (int x = 0; x < 8; ++x)
+        quant.at<float>(y, x) = std::round(quant.at<float>(y, x));
+    cv::Mat deq = quant.mul(Q * qScale);
+    cv::Mat idct;
+    cv::idct(deq, idct);
      
-    printMat(ycbcr_rec, "REFORMED YCBCR for conversion to RCB");
-    cv::Mat rgb_rec;
-    cv::cvtColor(ycbcr_rec, rgb_rec, cv::COLOR_YCrCb2BGR);
+    idct.convertTo(out, CV_8U);
+}
 
-    printMat(rgb_rec, "output before rescaling");
-    // Step 7: Enlarge to see each pixel
-    //INTER_NEAREST is used for resizing and replicating the same value for the resized pixels. but not good for natural or smooth photos
-    cv::resize(rgb, rgb, cv::Size(160, 160), 0, 0, cv::INTER_NEAREST);
-    cv::resize(rgb_rec, rgb_rec, cv::Size(160, 160), 0, 0, cv::INTER_NEAREST);
-    printMat(rgb_rec, "output after rescaling");
+// ---- 4. Apply Blockwise Process to All Channels ------
+cv::Mat processBlocks(const cv::Mat& img, float qScale, bool printFirstBlock = false) {
+    // img: CV_8UC3
+    cv::Mat ycbcr;
+    cv::cvtColor(img, ycbcr, cv::COLOR_BGR2YCrCb);
 
-    // Show before/after
-    cv::imshow("Original RGB patch", rgb);
-    cv::imshow("After 4:2:0 subsample/recon", rgb_rec);
+    int paddedRows = (ycbcr.rows + 7) / 8 * 8, paddedCols = (ycbcr.cols + 7) / 8 * 8;
+    cv::Mat padded;
+    cv::copyMakeBorder(ycbcr, padded, 0, paddedRows - ycbcr.rows, 0, paddedCols - ycbcr.cols, cv::BORDER_REPLICATE);
+    cv::Mat rec = padded.clone();
+    cv::Mat Q = makeQuantLuma();
+    cv::Mat IQ = idctQuantLuma();
+    // for each 8x8 block in each channel
+    for (int y = 0; y < padded.rows; y += 8) for (int x = 0; x < padded.cols; x += 8) {
+        cv::Mat blk = padded(cv::Rect(x, y, 8, 8));//0,0 (8,0),
+        std::vector<cv::Mat> chs(3), outChs(3), resizedChs(3);
+       
+        cv::split(blk, chs);//for bgr case, it splitted to b,g,r channel, now it splits to y,cb and cr channels.
+        cv::Mat cb_rz, cr_rz;
+
+        /*int width_rz = chs[1].cols / 2;
+        int height_rz = chs[1].rows;
+        cv::resize(chs[1], cr_rz,cv::Size(width_rz,height_rz),0,0, cv::INTER_AREA);
+        cv::resize(chs[2], cb_rz, cv::Size(width_rz, height_rz), 0, 0, cv::INTER_AREA);*/
+
+        for (int c = 0; c < 3;  ++c) {
+           /* if (c == 0) {
+                outChs[c] = chs[c].clone();
+            }
+            else {*/
+            jpegBlockProcess(chs[c], outChs[c], Q, qScale, IQ);
+            //}
+        }
+        cv::Mat outBlk;
+        cv::merge(outChs, outBlk);
+        outBlk.copyTo(rec(cv::Rect(x, y, 8, 8)));
+        int block_row_index = y / 8;
+        int block_col_index = x / 8;
+
+        if ((block_row_index + block_col_index) % 2 == 0) {
+            // Blocks where (row + col) is EVEN (e.g., top-left, 0,0) will be YELLOW
+             cv::rectangle(rec, cv::Rect(x, y, 8, 8), cv::Scalar(0, 0, 255), 1); // YELLOW (BGR: 0, 255, 255)
+        }
+        else {
+            // Blocks where (row + col) is ODD will be GREEN
+            cv::rectangle(rec, cv::Rect(x, y, 8, 8), cv::Scalar(0, 255, 0), 1); // GREEN (BGR: 0, 255, 0)
+        }
+        // print details on first processed block
+        if (printFirstBlock && y == 0 && x == 0) {
+            std::cout << "First block B, G, R before:\n";
+            for (int rr = 0; rr < 8; ++rr) {
+                for (int cc = 0; cc < 8; ++cc) {
+                    cv::Vec3b pix = blk.at<cv::Vec3b>(rr, cc);
+                    std::cout << "[" << (int)pix[0] << "," << (int)pix[1] << "," << (int)pix[2] << "] ";
+                }
+                std::cout << "\n";
+            }
+            std::cout << "First block B, G, R after (IDCT):\n";
+            for (int rr = 0; rr < 8; ++rr) {
+                for (int cc = 0; cc < 8; ++cc) {
+                    cv::Vec3b pix = outBlk.at<cv::Vec3b>(rr, cc);
+                    std::cout << "[" << (int)pix[0] << "," << (int)pix[1] << "," << (int)pix[2] << "] ";
+                }
+                std::cout << "\n";
+            }
+        }
+    }
+    cv::Mat bgr;
+    cv::cvtColor(rec, bgr, cv::COLOR_YCrCb2BGR);
+    return bgr;
+}
+
+// ---- 5. Enlarge helper for display ----
+cv::Mat enlargeImage(const cv::Mat& image, int scale) {
+    cv::Mat enlarged;
+    cv::resize(image, enlarged, cv::Size(), scale, scale, cv::INTER_NEAREST);
+    return enlarged;
+}
+
+int main() {
+    // Generate and display the colorful input
+    int rows = 32, cols = 32;
+    cv::Mat img = cv::imread("C:/input.jpg", cv::IMREAD_COLOR);
+    cv::Mat resized_image;
+    cv::resize(
+        img,      // Source image
+        resized_image ,       // Destination image (will be allocated by OpenCV)
+        cv::Size(120,120), // Target size (160x160)
+        0,                   // fx (scale factor in X - set to 0 as we use target size)
+        0,                   // fy (scale factor in Y - set to 0 as we use target size)
+        cv::INTER_AREA    // Interpolation method (smooth for scaling down or up)
+    );
+    float qScale = 2.0f; // Try 1.0 for nearly lossless, 2.0+ for strong blockiness (like bad JPEG)
+    // Process macroblock-wise and reconstruct
+    cv::Mat rec = processBlocks(resized_image, qScale, true); // true = print first block debug
+    // Enlarge both for macroblock visualization
+    int scale = 7;
+    cv::Mat enlarged_in = enlargeImage(resized_image, scale);
+    cv::Mat enlarged_out = enlargeImage(rec, scale);
+
+    cv::namedWindow("input", cv::WINDOW_NORMAL);
+    cv::resizeWindow("input", 600,400);
+    cv::imshow("input", enlarged_in);
+    cv::namedWindow("output", cv::WINDOW_NORMAL);
+    cv::resizeWindow("output", 600, 400);
+    cv::imshow("output", enlarged_out);
     cv::waitKey(0);
     return 0;
 }
