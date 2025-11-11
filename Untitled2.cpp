@@ -54,16 +54,16 @@ cv::Mat colorfulGradient(int rows, int cols) {
 }
 
 // ---- 3. Blockwise DCT/Quantize/IDCT for one 8x8-channel----
-void jpegBlockProcess(const cv::Mat& in, cv::Mat& out, const cv::Mat& Q, float qScale, const cv::Mat& IQ) {
-    CV_Assert(in.rows == 8 && in.cols == 8 && in.type() == CV_8U);
+void jpegBlockProcess(const cv::Mat& in, cv::Mat& out, const cv::Mat& Q, float qScale) {
+    //CV_Assert(in.rows == 8 && in.cols == 8 && in.type() == CV_8U);
     cv::Mat f;
     in.convertTo(f, CV_32F);
     cv::Mat dct;
     cv::dct(f, dct);
     cv::Mat quant = dct / (Q * qScale);
-    for (int y = 0; y <8; ++y) for (int x = 0; x < 8; ++x)
+    for (int y = 0; y <in.rows; ++y) for (int x = 0; x < in.cols; ++x)
         quant.at<float>(y, x) = std::round(quant.at<float>(y, x));
-    cv::Mat deq = quant.mul(Q * qScale);
+    cv::Mat deq = quant.mul(Q-20 * qScale);
     cv::Mat idct;
     cv::idct(deq, idct);
      
@@ -90,33 +90,33 @@ cv::Mat processBlocks(const cv::Mat& img, float qScale, bool printFirstBlock = f
         cv::split(blk, chs);//for bgr case, it splitted to b,g,r channel, now it splits to y,cb and cr channels.
         cv::Mat cb_rz, cr_rz;
 
-        /*int width_rz = chs[1].cols / 2;
+        int width_rz = chs[1].cols / 2;
         int height_rz = chs[1].rows;
-        cv::resize(chs[1], cr_rz,cv::Size(width_rz,height_rz),0,0, cv::INTER_AREA);
-        cv::resize(chs[2], cb_rz, cv::Size(width_rz, height_rz), 0, 0, cv::INTER_AREA);*/
+        cv::resize(chs[1], cr_rz,cv::Size(4,8),0,0, cv::INTER_AREA);
+        cv::resize(chs[2], cb_rz, cv::Size(4, 8), 0, 0, cv::INTER_AREA);
 
-        for (int c = 0; c < 3;  ++c) {
-           /* if (c == 0) {
-                outChs[c] = chs[c].clone();
-            }
-            else {*/
-            jpegBlockProcess(chs[c], outChs[c], Q, qScale, IQ);
-            //}
-        }
+        jpegBlockProcess(chs[0], resizedChs[0], Q, qScale);
+        jpegBlockProcess(cr_rz, resizedChs[1], Q.colRange(0,4), qScale);
+        jpegBlockProcess(cb_rz, resizedChs[2], Q.colRange(4, 8), qScale);
+ 
         cv::Mat outBlk;
+        cv::resize(resizedChs[1], outChs[1], cv::Size(8, 8), 0, 0, cv::INTER_LINEAR);
+        cv::resize(resizedChs[2], outChs[2], cv::Size(8, 8), 0, 0, cv::INTER_LINEAR);
+        outChs[0] = chs[0];//yo missed out vako rahixa.
+
         cv::merge(outChs, outBlk);
         outBlk.copyTo(rec(cv::Rect(x, y, 8, 8)));
         int block_row_index = y / 8;
         int block_col_index = x / 8;
 
-        if ((block_row_index + block_col_index) % 2 == 0) {
-            // Blocks where (row + col) is EVEN (e.g., top-left, 0,0) will be YELLOW
-             cv::rectangle(rec, cv::Rect(x, y, 8, 8), cv::Scalar(0, 0, 255), 1); // YELLOW (BGR: 0, 255, 255)
-        }
-        else {
-            // Blocks where (row + col) is ODD will be GREEN
-            cv::rectangle(rec, cv::Rect(x, y, 8, 8), cv::Scalar(0, 255, 0), 1); // GREEN (BGR: 0, 255, 0)
-        }
+        //if ((block_row_index + block_col_index) % 2 == 0) {
+        //    // Blocks where (row + col) is EVEN (e.g., top-left, 0,0) will be YELLOW
+        //     cv::rectangle(rec, cv::Rect(x, y, 8, 8), cv::Scalar(0, 0, 255), 1); // YELLOW (BGR: 0, 255, 255)
+        //}
+        //else {
+        //    // Blocks where (row + col) is ODD will be GREEN
+        //    cv::rectangle(rec, cv::Rect(x, y, 8, 8), cv::Scalar(0, 255, 0), 1); // GREEN (BGR: 0, 255, 0)
+        //}
         // print details on first processed block
         if (printFirstBlock && y == 0 && x == 0) {
             std::cout << "First block B, G, R before:\n";
@@ -157,7 +157,7 @@ int main() {
     cv::resize(
         img,      // Source image
         resized_image ,       // Destination image (will be allocated by OpenCV)
-        cv::Size(120,120), // Target size (160x160)
+        cv::Size(620,620), // Target size (160x160)
         0,                   // fx (scale factor in X - set to 0 as we use target size)
         0,                   // fy (scale factor in Y - set to 0 as we use target size)
         cv::INTER_AREA    // Interpolation method (smooth for scaling down or up)
